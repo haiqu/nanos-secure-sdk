@@ -58,7 +58,9 @@ int setjmp(jmp_buf __jmpb);
 #include "stddef.h"
 #include "stdint.h"
 
+#ifndef UNUSED
 #define UNUSED(x) (void) x
+#endif
 
 #include "os_apilevel.h"
 
