@@ -66,6 +66,15 @@ void os_io_seproxyhal_general_status_processing(void) {
 }
 */
 
+
+void io_seproxyhal_request_mcu_status(void) {
+  // send the general status
+  G_io_seproxyhal_spi_buffer[0] = SEPROXYHAL_TAG_REQUEST_STATUS;
+  G_io_seproxyhal_spi_buffer[1] = 0;
+  G_io_seproxyhal_spi_buffer[2] = 0;
+  io_seproxyhal_spi_send(G_io_seproxyhal_spi_buffer, 3);
+}
+
 //#define WAIT_MS(x) { volatile unsigned int i = 0xAA*x; while (i--); }
 
 #ifdef HAVE_IO_USB
@@ -226,6 +235,8 @@ const char debug_apdus[] = {
 #endif // DEBUG_APDU
 
 void io_seproxyhal_init(void) {
+  // Enforce OS compatibility
+  check_api_level(CX_COMPAT_APILEVEL);
   G_io_apdu_state = APDU_IDLE;
   G_io_apdu_offset = 0;
   G_io_apdu_length = 0;
@@ -379,6 +390,38 @@ void io_seproxyhal_display_default(bagl_element_t * element) {
     io_seproxyhal_spi_send(G_io_seproxyhal_spi_buffer, 3);
     io_seproxyhal_spi_send((const void*)&element->component, sizeof(bagl_component_t));
   }
+}
+
+void io_seproxyhal_display_bitmap(unsigned int x, unsigned int y, unsigned int w, unsigned int h, unsigned int* color_index, unsigned int bit_per_pixel, unsigned char* bitmap) {
+  // component type = ICON
+  // component icon id = 0
+  // => bitmap transmitted
+  bagl_component_t c;
+  os_memset(&c, 0, sizeof(c));
+  c.type = BAGL_ICON;
+  c.x = x;
+  c.y = y;
+  c.width = w;
+  c.height = h;
+  // done by memset // c.icon_id = 0;
+
+  // color index size
+  h = ((1<<bit_per_pixel)*sizeof(unsigned int)); 
+  // bitmap size
+  w = ((w*c.height*bit_per_pixel)/8)+((w*c.height*bit_per_pixel)%8?1:0);
+  unsigned short length = sizeof(bagl_component_t)
+                          +1 /* bpp */
+                          +h /* color index */
+                          +w; /* image bitmap */
+  G_io_seproxyhal_spi_buffer[0] = SEPROXYHAL_TAG_SCREEN_DISPLAY_STATUS;
+  G_io_seproxyhal_spi_buffer[1] = length>>8;
+  G_io_seproxyhal_spi_buffer[2] = length;
+  io_seproxyhal_spi_send(G_io_seproxyhal_spi_buffer, 3);
+  io_seproxyhal_spi_send(&c, sizeof(bagl_component_t));
+  G_io_seproxyhal_spi_buffer[0] = bit_per_pixel;
+  io_seproxyhal_spi_send(G_io_seproxyhal_spi_buffer, 1);
+  io_seproxyhal_spi_send(color_index, h);
+  io_seproxyhal_spi_send(bitmap, w);
 }
 
 unsigned int bagl_label_roundtrip_duration_ms(const bagl_element_t* e, unsigned int average_char_width) {
